@@ -16,7 +16,17 @@ _None yet._
 
 ## Codebase Patterns
 
-_None yet._
+- **`@devdigest/shared` is vendored TWICE, independently, and NOT kept in
+  sync automatically.** `server/src/vendor/shared/` and
+  `client/src/vendor/shared/` are two separate copies of the same contracts
+  (no symlink, no build step, no codegen linking them) — editing a Zod
+  schema in one (e.g. `contracts/trace.ts`, `contracts/platform.ts`) does
+  NOT change the other. Adding/changing a field used by both server routes
+  and client components requires editing both copies by hand, or `client`'s
+  `tsc --noEmit` fails with "Property does not exist" / "missing in type"
+  against the OTHER copy's shape, even though the server-side change alone
+  typechecks cleanly. Always grep both `server/src/vendor/shared/contracts/`
+  and `client/src/vendor/shared/contracts/` when touching a shared contract.
 
 ## Tool & Library Notes
 
