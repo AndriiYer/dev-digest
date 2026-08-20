@@ -64,6 +64,9 @@ export const RunStats = z.object({
   tokens_out: z.number().int(),
   findings: z.number().int(),
   grounding: z.string(),
+  /** USD; null = not computed (model unknown to the price table, or the run
+   *  never reached 'done'). */
+  cost_usd: z.number().nullable(),
 });
 export type RunStats = z.infer<typeof RunStats>;
 
@@ -102,6 +105,9 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** USD; null = not computed (model unknown to the price table, or the run
+   *  never reached 'done'). */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),
