@@ -8,7 +8,8 @@ import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui
 import type { PrMeta } from "@/lib/types";
 import type { Severity } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
-import { FindingsPreviewPopover } from "../FindingsPreviewPopover";
+import { FindingsPreviewPopover } from "@/components/findings-preview-popover";
+import { usePrReviews } from "@/lib/hooks/reviews";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
@@ -16,7 +17,16 @@ import { s } from "../../styles";
 /** Chip display order — CRITICAL first. */
 const SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
-export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+export function PRRow({
+  pr,
+  repoId,
+  repoFullName,
+}: {
+  pr: PrMeta;
+  repoId: string;
+  /** owner/repo — enables GitHub deep-links in the findings preview popover. */
+  repoFullName?: string | null;
+}) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
@@ -31,6 +41,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   // FindingsPreviewPopover — so it won't track scroll on its own).
   const [openSeverity, setOpenSeverity] = React.useState<Severity | null>(null);
   const findingsCellRef = React.useRef<HTMLDivElement>(null);
+  // Lazy: only fetches once a severity is toggled open (usePrReviews disables
+  // itself when prId is falsy).
+  const { data: reviews, isLoading: reviewsLoading } = usePrReviews(openSeverity ? pr.id : null);
+  const latestFindings = reviews?.[0]?.findings ?? [];
+  const totalFindingsCount = pr.findings_by_severity
+    ? pr.findings_by_severity.CRITICAL + pr.findings_by_severity.WARNING + pr.findings_by_severity.SUGGESTION
+    : 0;
   React.useEffect(() => {
     if (!openSeverity) return;
     const onOutside = (e: MouseEvent) => {
@@ -94,6 +111,8 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
                   key={sev}
                   type="button"
                   disabled={count === 0}
+                  aria-label={`${sev} findings: ${count}`}
+                  aria-pressed={openSeverity === sev}
                   onClick={() => setOpenSeverity((cur) => (cur === sev ? null : sev))}
                   style={s.findingsBadgeBtn(count === 0)}
                 >
@@ -101,8 +120,15 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
                 </button>
               );
             })}
-            {openSeverity && pr.id && (
-              <FindingsPreviewPopover prId={pr.id} severity={openSeverity} anchorRef={findingsCellRef} />
+            {openSeverity && (
+              <FindingsPreviewPopover
+                findings={latestFindings.filter((f) => f.severity === openSeverity)}
+                totalCount={totalFindingsCount}
+                isLoading={reviewsLoading}
+                anchorRef={findingsCellRef}
+                repoFullName={repoFullName}
+                headSha={pr.head_sha}
+              />
             )}
           </div>
         )}
