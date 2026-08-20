@@ -31,3 +31,7 @@ pnpm build && pnpm start
   responses.
 - Route map lives under `src/app/**/page.tsx`; see `README.md` for the
   current tree (repos → pulls → review detail, agents, settings, onboarding).
+- Before starting work here, read [Insights.md](Insights.md) and treat it as
+  high-confidence guidance. At session end, if something non-obvious was
+  learned, append it (read the file first to avoid duplicating an existing
+  entry) — see the `engineering-insights` skill.

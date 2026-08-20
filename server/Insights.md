@@ -1,5 +1,26 @@
 # Insights — server
 
+Section structure and recording rules: see the `engineering-insights` skill
+(`../.claude/skills/engineering-insights/SKILL.md`).
+
+## What Works
+
+_None yet._
+
+## What Doesn't Work
+
+_None yet._
+
+## Codebase Patterns
+
+_None yet._
+
+## Tool & Library Notes
+
+_None yet._
+
+## Recurring Errors & Fixes
+
 - **`ERR_MODULE_NOT_FOUND` on fresh clone.** Caused by `reviewer-core`'s own
   `node_modules` not being installed — `server` imports its TS source
   directly via path alias, so it needs its deps present even though it's
@@ -11,3 +32,11 @@
 - **Migrations are not auto-applied on boot.** A common "why is my new
   column missing" trap — always `pnpm db:migrate` after pulling schema
   changes.
+
+## Session Notes
+
+_None yet._
+
+## Open Questions
+
+_None yet._

@@ -2,7 +2,27 @@
 
 Project-wide gotchas and decisions worth knowing before touching more than
 one package. Package-specific insights live in each package's own
-`Insights.md` (linked from that package's `CLAUDE.md`).
+`Insights.md` (linked from that package's `CLAUDE.md`). Section structure
+and recording rules: see the `engineering-insights` skill
+(`.claude/skills/engineering-insights/SKILL.md`).
+
+## What Works
+
+_None yet._
+
+## What Doesn't Work
+
+_None yet._
+
+## Codebase Patterns
+
+_None yet._
+
+## Tool & Library Notes
+
+_None yet._
+
+## Recurring Errors & Fixes
 
 - **Fresh clone won't boot without installing `reviewer-core`'s own deps.**
   `server` imports `reviewer-core`'s TypeScript source directly via a
@@ -12,3 +32,11 @@ one package. Package-specific insights live in each package's own
   run `npm ci` inside `reviewer-core/` yourself. Fixed in `66727c8`, `19287e7`.
 - **DB migrations are not applied automatically on server boot.** Run
   `pnpm db:migrate` inside `server/` after pulling schema changes.
+
+## Session Notes
+
+_None yet._
+
+## Open Questions
+
+_None yet._

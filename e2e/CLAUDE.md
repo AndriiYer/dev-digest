@@ -29,3 +29,7 @@ npm run typecheck
   browsing — no LLM keys are needed to run this suite.
 - Needs the full stack running (Postgres + API + web) — `../scripts/e2e.sh`
   handles that; don't hand-roll a partial boot sequence.
+- Before starting work here, read [Insights.md](Insights.md) and treat it as
+  high-confidence guidance. At session end, if something non-obvious was
+  learned, append it (read the file first to avoid duplicating an existing
+  entry) — see the `engineering-insights` skill.

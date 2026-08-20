@@ -40,3 +40,8 @@ docker compose down       # stop Postgres (dev.sh only stops the dev servers)
 
 - Don't duplicate content across `CLAUDE.md` files and `README.md`/`docs/`. `CLAUDE.md` links out and gives agent-operational essentials (commands, gotchas); prose/architecture belongs in `README.md`/`docs/`.
 - Package boundaries are real: `server` and `client` use pnpm, `reviewer-core` and `e2e` use npm deliberately (see [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md)). Don't add a root lockfile or workspace config that blurs this.
+- Before working in a package, read that package's `Insights.md` (plus this
+  file's, if the change is cross-cutting) and treat it as high-confidence
+  guidance. At the end of a substantive session, if something non-obvious
+  was learned, append it — read the file first so you don't duplicate an
+  existing entry. Format and rules: [.claude/skills/engineering-insights/SKILL.md](.claude/skills/engineering-insights/SKILL.md).

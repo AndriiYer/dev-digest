@@ -40,3 +40,7 @@ npm test            # vitest, hermetic — stubbed LLMProvider, no keys/network
 - If `server` fails to boot with `ERR_MODULE_NOT_FOUND`, it's almost always
   this package's `node_modules` missing — see
   [../server/Insights.md](../server/Insights.md).
+- Before starting work here, read [Insights.md](Insights.md) and treat it as
+  high-confidence guidance. At session end, if something non-obvious was
+  learned, append it (read the file first to avoid duplicating an existing
+  entry) — see the `engineering-insights` skill.

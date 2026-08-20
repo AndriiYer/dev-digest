@@ -40,3 +40,7 @@ pnpm build && pnpm start
 - Adapters (LLM, GitHub, git, ast-grep) sit behind the DI container
   (`src/platform/container.ts`) with mocks in `src/adapters/mocks.ts` — use
   the mocks in unit tests, never real network/keys.
+- Before starting work here, read [Insights.md](Insights.md) and treat it as
+  high-confidence guidance. At session end, if something non-obvious was
+  learned, append it (read the file first to avoid duplicating an existing
+  entry) — see the `engineering-insights` skill.
