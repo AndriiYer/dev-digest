@@ -6,13 +6,15 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
+import type { Severity } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsPreviewPopover } from "../FindingsPreviewPopover";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
 /** Chip display order — CRITICAL first. */
-const SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;
+const SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -21,6 +23,29 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+
+  // Click a FINDINGS badge → preview popover for just that severity. Exclusive
+  // (clicking the active badge again closes it); listeners that only exist
+  // while a popover is open close it on an outside click or on scroll (the
+  // popover's position is computed once on open, via a portal — see
+  // FindingsPreviewPopover — so it won't track scroll on its own).
+  const [openSeverity, setOpenSeverity] = React.useState<Severity | null>(null);
+  const findingsCellRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!openSeverity) return;
+    const onOutside = (e: MouseEvent) => {
+      if (findingsCellRef.current && !findingsCellRef.current.contains(e.target as Node)) {
+        setOpenSeverity(null);
+      }
+    };
+    const onScroll = () => setOpenSeverity(null);
+    document.addEventListener("mousedown", onOutside);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [openSeverity]);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -61,9 +86,25 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         {pr.findings_by_severity == null ? (
           <span style={s.muted}>—</span>
         ) : (
-          SEVERITIES.map((sev) => (
-            <SeverityBadge key={sev} severity={sev} count={pr.findings_by_severity![sev]} compact />
-          ))
+          <div ref={findingsCellRef} onClick={(e) => e.stopPropagation()} style={s.findingsChips}>
+            {SEVERITIES.map((sev) => {
+              const count = pr.findings_by_severity![sev];
+              return (
+                <button
+                  key={sev}
+                  type="button"
+                  disabled={count === 0}
+                  onClick={() => setOpenSeverity((cur) => (cur === sev ? null : sev))}
+                  style={s.findingsBadgeBtn(count === 0)}
+                >
+                  <SeverityBadge severity={sev} count={count} compact />
+                </button>
+              );
+            })}
+            {openSeverity && pr.id && (
+              <FindingsPreviewPopover prId={pr.id} severity={openSeverity} anchorRef={findingsCellRef} />
+            )}
+          </div>
         )}
       </div>
       <div>
