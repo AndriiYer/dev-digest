@@ -4,12 +4,15 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
+import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { RunCostBadge } from "@/components/run-cost-badge";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+
+/** Chip display order — CRITICAL first. */
+const SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -52,6 +55,15 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <CircularScore score={pr.score!} size={34} stroke={3} />
         ) : (
           <span style={s.muted}>—</span>
+        )}
+      </div>
+      <div style={s.findingsCell}>
+        {pr.findings_by_severity == null ? (
+          <span style={s.muted}>—</span>
+        ) : (
+          SEVERITIES.map((sev) => (
+            <SeverityBadge key={sev} severity={sev} count={pr.findings_by_severity![sev]} compact />
+          ))
         )}
       </div>
       <div>
