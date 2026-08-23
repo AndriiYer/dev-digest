@@ -9,6 +9,22 @@ export const s = {
     marginBottom: 16,
     flexWrap: "wrap",
   } satisfies CSSProperties,
+  chipsGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  severityChip: (active: boolean, someActive: boolean, color: string): CSSProperties => ({
+    background: "none",
+    border: "none",
+    padding: 0,
+    borderRadius: 6,
+    cursor: "pointer",
+    opacity: someActive && !active ? 0.45 : 1,
+    boxShadow: active ? `0 0 0 1.5px ${color}` : "none",
+    transition: "opacity .1s, box-shadow .1s",
+  }),
   divider: {
     width: 1,
     height: 18,

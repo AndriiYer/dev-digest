@@ -173,6 +173,15 @@ export const PrMeta = z.object({
   // Latest review-run's cost in USD (list endpoint only; null/absent until
   // reviewed, or when the run's model/price is unknown).
   cost_usd: z.number().nullish(),
+  // Latest review's findings, grouped by severity (list endpoint only;
+  // null/absent until reviewed).
+  findings_by_severity: z
+    .object({
+      CRITICAL: z.number().int(),
+      WARNING: z.number().int(),
+      SUGGESTION: z.number().int(),
+    })
+    .nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

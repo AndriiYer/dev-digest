@@ -4,13 +4,16 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Toggle, EmptyState } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
+import { Toggle, EmptyState, SeverityBadge, SEV } from "@devdigest/ui";
+import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { visibleFindings, countBySeverity } from "./helpers";
 import { s } from "./styles";
+
+/** Chip display order — CRITICAL first, matches SEVERITY_ORDER. */
+const SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 export function FindingsPanel({
   findings,
@@ -26,9 +29,24 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const counts = React.useMemo(() => countBySeverity(findings), [findings]);
+  const shown = React.useMemo(
+    () => visibleFindings(findings, hideLow, severityFilter),
+    [findings, hideLow, severityFilter],
+  );
+
+  const toggleSeverity = React.useCallback((sev: Severity) => {
+    setSeverityFilter((cur) => (cur === sev ? null : sev));
+  }, []);
+
+  // Keep keyboard focus in range when a filter shrinks/changes the list —
+  // otherwise `focused` can point past the end and no card highlights.
+  React.useEffect(() => {
+    setFocusIdx(0);
+  }, [hideLow, severityFilter]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -48,6 +66,19 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
+        <div style={s.chipsGroup}>
+          {SEVERITIES.filter((sev) => counts[sev] > 0).map((sev) => (
+            <button
+              key={sev}
+              type="button"
+              onClick={() => toggleSeverity(sev)}
+              aria-pressed={severityFilter === sev}
+              style={s.severityChip(severityFilter === sev, severityFilter !== null, SEV[sev].c)}
+            >
+              <SeverityBadge severity={sev} count={counts[sev]} />
+            </button>
+          ))}
+        </div>
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

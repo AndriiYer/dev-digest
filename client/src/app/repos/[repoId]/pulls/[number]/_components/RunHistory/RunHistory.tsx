@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
+import type { RunSummary, PrCommit, ReviewRecord, Severity } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsPreviewPopover } from "@/components/findings-preview-popover";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -17,6 +18,9 @@ import { RunCostBadge } from "@/components/run-cost-badge";
  * is derived from the denormalized blocker/finding counts on the run row, so it
  * matches the CI gate (deterministic) rather than the model's verdict.
  */
+
+/** Chip display order — CRITICAL first. */
+const SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 type Outcome = { key: string; color: string; bg: string; icon: IconName };
 
@@ -34,6 +38,12 @@ function outcomeOf(run: RunSummary): Outcome {
   if ((run.findings_count ?? 0) > 0)
     return { key: "reviewed", color: "var(--warn)", bg: "var(--warn-bg)", icon: "MessageSquare" };
   return { key: "approved", color: "var(--ok)", bg: "var(--ok-bg)", icon: "CheckCircle" };
+}
+
+function countBySeverity(findings: ReviewRecord["findings"]): Record<Severity, number> {
+  const counts: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const f of findings) counts[f.severity]++;
+  return counts;
 }
 
 const rowStyle: React.CSSProperties = {
@@ -61,6 +71,15 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const findingsBadgeBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  background: "none",
+  border: "none",
+  padding: 0,
+  borderRadius: 6,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.5 : 1,
+});
+
 // Commits are markers, not actions — lighter (dashed, transparent) so they read
 // as separators between the runs they sit chronologically between.
 const commitRowStyle: React.CSSProperties = {
@@ -85,22 +104,180 @@ function tsOf(s: string | null | undefined): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+/** One timeline run row — a private sub-component (not reused elsewhere) so
+ *  each row owns its own findings-preview popover state independently. */
+function RunRow({
+  run: r,
+  review,
+  repoFullName,
+  headSha,
+  onOpenTrace,
+  onGoToReview,
+  onDelete,
+}: {
+  run: RunSummary;
+  review: ReviewRecord | undefined;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  onOpenTrace: (runId: string) => void;
+  onGoToReview?: (runId: string) => void;
+  onDelete?: (runId: string) => void;
+}) {
+  const t = useTranslations("prReview");
+  const o = outcomeOf(r);
+  const settled = r.status === "done";
+  const counts = React.useMemo(() => (review ? countBySeverity(review.findings) : null), [review]);
+
+  const [openSeverity, setOpenSeverity] = React.useState<Severity | null>(null);
+  const findingsCellRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!openSeverity) return;
+    const onOutside = (e: MouseEvent) => {
+      if (findingsCellRef.current && !findingsCellRef.current.contains(e.target as Node)) {
+        setOpenSeverity(null);
+      }
+    };
+    const onScroll = () => setOpenSeverity(null);
+    document.addEventListener("mousedown", onOutside);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [openSeverity]);
+
+  return (
+    <div style={rowStyle}>
+      <Badge color={o.color} bg={o.bg} icon={o.icon}>
+        {t(`runStatus.${o.key}`)}
+      </Badge>
+      {settled && r.score != null && <CircularScore score={r.score} size={30} stroke={3} />}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+          <button
+            type="button"
+            onClick={() => onGoToReview?.(r.run_id)}
+            title={t("timeline.goToReview")}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              font: "inherit",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              cursor: onGoToReview ? "pointer" : "default",
+              textDecoration: onGoToReview ? "underline" : "none",
+              textDecorationStyle: "dotted",
+              textUnderlineOffset: 3,
+            }}
+          >
+            {r.agent_name ?? "Agent"}
+          </button>{" "}
+          <span className="mono" style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
+            {r.provider}/{r.model}
+          </span>
+        </div>
+        {r.status === "failed" && r.error && (
+          <div
+            style={{ fontSize: 12, color: "var(--crit)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            title={r.error}
+          >
+            {r.error}
+          </div>
+        )}
+        {settled && (
+          <div ref={findingsCellRef} onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+            {counts ? (
+              SEVERITIES.map((sev) => (
+                <button
+                  key={sev}
+                  type="button"
+                  disabled={counts[sev] === 0}
+                  aria-label={`${sev} findings: ${counts[sev]}`}
+                  aria-pressed={openSeverity === sev}
+                  onClick={() => setOpenSeverity((cur) => (cur === sev ? null : sev))}
+                  style={findingsBadgeBtnStyle(counts[sev] === 0)}
+                >
+                  <SeverityBadge severity={sev} count={counts[sev]} compact />
+                </button>
+              ))
+            ) : (
+              // Review not loaded yet (or none for this run) — fall back to the
+              // plain count rather than showing nothing.
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+              </span>
+            )}
+            {(r.blockers ?? 0) > 0 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {t("runStatus.blockers", { count: r.blockers ?? 0 })}
+              </span>
+            )}
+            {openSeverity && counts && (
+              <FindingsPreviewPopover
+                findings={(review?.findings ?? []).filter((f) => f.severity === openSeverity)}
+                totalCount={r.findings_count ?? 0}
+                contextLabel="in this run"
+                anchorRef={findingsCellRef}
+                repoFullName={repoFullName}
+                headSha={headSha}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+        {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+        {settled && <RunCostBadge costUsd={r.cost_usd} variant="detailed" />}
+      </div>
+      <button
+        type="button"
+        title={t("timeline.openTrace")}
+        aria-label={t("timeline.openTrace")}
+        onClick={() => onOpenTrace(r.run_id)}
+        style={iconBtnStyle}
+      >
+        <Icon.FileText size={13} />
+      </button>
+      {onDelete && r.status !== "running" && (
+        <span
+          role="button"
+          aria-label={t("timeline.deleteRun")}
+          title={t("timeline.deleteRun")}
+          onClick={() => onDelete(r.run_id)}
+          style={{ display: "inline-flex", padding: 3, borderRadius: 5, color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }}
+        >
+          <Icon.Trash size={13} />
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function RunHistory({
   runs,
+  reviews = [],
   commits = [],
+  repoFullName,
+  headSha,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
+  /** Persisted reviews (with findings) for this PR — matched to a run via
+   *  `review.run_id === run.run_id` so the FINDINGS badges can preview
+   *  without a separate fetch (the PR detail page already loads these). */
+  reviews?: ReviewRecord[];
   commits?: PrCommit[];
+  repoFullName?: string | null;
+  headSha?: string | null;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
   onDelete?: (runId: string) => void;
 }) {
-  const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
 
   const items: TimelineItem[] = [
@@ -148,79 +325,17 @@ export function RunHistory({
         }
 
         const r = item.run;
-        const o = outcomeOf(r);
-        const settled = r.status === "done";
         return (
-          <div key={`run:${r.run_id}`} style={rowStyle}>
-            <Badge color={o.color} bg={o.bg} icon={o.icon}>
-              {t(`runStatus.${o.key}`)}
-            </Badge>
-            {settled && r.score != null && <CircularScore score={r.score} size={30} stroke={3} />}
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                <button
-                  type="button"
-                  onClick={() => onGoToReview?.(r.run_id)}
-                  title={t("timeline.goToReview")}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    fontWeight: 600,
-                    color: "var(--text-primary)",
-                    cursor: onGoToReview ? "pointer" : "default",
-                    textDecoration: onGoToReview ? "underline" : "none",
-                    textDecorationStyle: "dotted",
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {r.agent_name ?? "Agent"}
-                </button>{" "}
-                <span className="mono" style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
-                  {r.provider}/{r.model}
-                </span>
-              </div>
-              {r.status === "failed" && r.error && (
-                <div
-                  style={{ fontSize: 12, color: "var(--crit)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  title={r.error}
-                >
-                  {r.error}
-                </div>
-              )}
-              {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
-              )}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
-              {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
-              {settled && <RunCostBadge costUsd={r.cost_usd} variant="detailed" />}
-            </div>
-            <button
-              type="button"
-              title={t("timeline.openTrace")}
-              aria-label={t("timeline.openTrace")}
-              onClick={() => onOpenTrace(r.run_id)}
-              style={iconBtnStyle}
-            >
-              <Icon.FileText size={13} />
-            </button>
-            {onDelete && r.status !== "running" && (
-              <span
-                role="button"
-                aria-label={t("timeline.deleteRun")}
-                title={t("timeline.deleteRun")}
-                onClick={() => onDelete(r.run_id)}
-                style={{ display: "inline-flex", padding: 3, borderRadius: 5, color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }}
-              >
-                <Icon.Trash size={13} />
-              </span>
-            )}
-          </div>
+          <RunRow
+            key={`run:${r.run_id}`}
+            run={r}
+            review={reviews.find((rv) => rv.run_id === r.run_id)}
+            repoFullName={repoFullName}
+            headSha={headSha}
+            onOpenTrace={onOpenTrace}
+            onGoToReview={onGoToReview}
+            onDelete={onDelete}
+          />
         );
       })}
     </div>
